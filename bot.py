@@ -27,7 +27,7 @@ def send_telegram(text):
         print(f"❌ Ошибка Telegram: {e}", flush=True)
 
 def get_candles(timeframe, limit=200):
-    """Фьючерсный API BingX"""
+    """Получение свечей с BingX Futures API"""
     url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
     params = {"symbol": SYMBOL, "interval": timeframe, "limit": limit}
     headers = {"X-BX-APIKEY": API_KEY}
@@ -35,67 +35,69 @@ def get_candles(timeframe, limit=200):
     try:
         r = requests.get(url, headers=headers, params=params, timeout=10)
         data = r.json()
+        
         if data.get("code") != 0:
-            print(f"❌ Ошибка API: {data.get('msg')}", flush=True)
+            print(f"❌ API error: {data.get('msg')}", flush=True)
             return None
-        candles = data.get("data", [])
+        
+        candles = data.get("data")
         if not candles:
+            print("❌ No data", flush=True)
             return None
-        df = pd.DataFrame([c[:5] for c in candles], columns=["time", "open", "high", "low", "close"])
-        df["close"] = df["close"].astype(float)
+        
+        # Прямое создание DataFrame без срезов
+        df_list = []
+        for c in candles:
+            df_list.append({
+                'time': c[0],
+                'open': float(c[1]),
+                'high': float(c[2]),
+                'low': float(c[3]),
+                'close': float(c[4])
+            })
+        
+        df = pd.DataFrame(df_list)
         return df
+        
     except Exception as e:
-        print(f"❌ Ошибка API: {e}", flush=True)
+        print(f"❌ Ошибка: {e}", flush=True)
         return None
 
 def sma_shifted(df, period, shift):
-    """Скользящая средняя со сдвигом вправо"""
     ma = df["close"].rolling(window=period).mean()
     if shift > 0:
         ma = ma.shift(shift)
     return ma
 
 def check_signal(df_15m):
-    """Проверяет пересечение SMA5(0) и SMA20(5)"""
     if df_15m is None or len(df_15m) < 60:
         return None, None, None, None
     
     df = df_15m.copy()
-    
-    # Расчет линий с правильными сдвигами
-    fast = sma_shifted(df, 5, 0)      # SMA(5,0) — без сдвига
-    slow = sma_shifted(df, 20, 5)     # SMA(20,5) — сдвиг 5 вправо
+    fast = sma_shifted(df, 5, 0)
+    slow = sma_shifted(df, 20, 5)
     
     df["fast"] = fast
     df["slow"] = slow
-    
-    # Удаляем строки с NaN (первые 20+5 свечей)
     df = df.dropna().reset_index(drop=True)
     
     if len(df) < 2:
         return None, None, None, None
     
-    # Берем последние две свечи
     now_fast = df["fast"].iloc[-1]
     now_slow = df["slow"].iloc[-1]
     prev_fast = df["fast"].iloc[-2]
     prev_slow = df["slow"].iloc[-2]
     price = df["close"].iloc[-1]
     
-    # Логируем текущие значения для отладки
-    print(f"📊 fast={now_fast:.2f} slow={now_slow:.2f} prev_fast={prev_fast:.2f} prev_slow={prev_slow:.2f}", flush=True)
-    
-    # Золотой крест: fast была ниже slow, стала выше
     if prev_fast <= prev_slow and now_fast > now_slow:
         return "golden", now_fast, now_slow, price
-    # Крест смерти: fast была выше slow, стала ниже
     elif prev_fast >= prev_slow and now_fast < now_slow:
         return "death", now_fast, now_slow, price
     else:
         return None, None, None, None
 
 def get_h1_trend():
-    """Тренд на H1: цена выше/ниже SMA20(5)"""
     df = get_candles(TIMEFRAME_HIGHER, 150)
     if df is None:
         return None
@@ -119,7 +121,6 @@ def get_h1_trend():
 def monitor():
     print("🚀 Мониторинг запущен", flush=True)
     print(f"📊 {SYMBOL} | {TIMEFRAME} | SMA5(0) vs SMA20(5)", flush=True)
-    print(f"🔽 Фильтр H1: {'ВКЛ'}", flush=True)
     print("-" * 50, flush=True)
     
     last_signal = None
@@ -188,7 +189,6 @@ def monitor():
 def home():
     return "Bot is running!"
 
-# Запускаем мониторинг в фоне
 thread = threading.Thread(target=monitor)
 thread.daemon = True
 thread.start()
