@@ -27,7 +27,6 @@ def send_telegram(text):
 
 def get_candles(timeframe, limit=200):
     """BingX Futures API"""
-    # Используем правильный фьючерсный эндпоинт
     url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
     params = {
         "symbol": SYMBOL,
@@ -134,7 +133,8 @@ def monitor():
 
 @app.route('/')
 def home():
-    return "Bot running (Futures)"
+    # Минимальный ответ для пинга (чтобы cron-job.org не ругался на большие данные)
+    return "OK"
 
 thread = threading.Thread(target=monitor)
 thread.start()
