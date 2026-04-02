@@ -12,7 +12,7 @@ BOT_TOKEN = "8677995560:AAH10i9hTA4yRpFf9S6_d-IlgLNHJexmbAY"
 CHAT_ID = 970067275
 # =============================================
 
-SYMBOL = "BTC-USDT"
+SYMBOL = "BTCUSDT"
 TIMEFRAME = "15m"
 TIMEFRAME_HIGHER = "1h"
 
@@ -22,13 +22,13 @@ def send_telegram(text):
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         requests.post(url, json={"chat_id": CHAT_ID, "text": text}, timeout=10)
-        print("✅ Telegram отправлено", flush=True)
+        print("✅ Telegram sent", flush=True)
     except Exception as e:
-        print(f"❌ Ошибка Telegram: {e}", flush=True)
+        print(f"❌ Telegram error: {e}", flush=True)
 
 def get_candles(timeframe, limit=200):
-    """Получение свечей с BingX Futures API"""
-    url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
+    """BingX Spot API"""
+    url = "https://open-api.bingx.com/openApi/spot/v1/market/kline"
     params = {"symbol": SYMBOL, "interval": timeframe, "limit": limit}
     headers = {"X-BX-APIKEY": API_KEY}
     
@@ -37,30 +37,25 @@ def get_candles(timeframe, limit=200):
         data = r.json()
         
         if data.get("code") != 0:
-            print(f"❌ API error: {data.get('msg')}", flush=True)
+            print(f"API error: {data.get('msg')}", flush=True)
             return None
         
         candles = data.get("data")
         if not candles:
-            print("❌ No data", flush=True)
+            print("No data", flush=True)
             return None
         
-        # Прямое создание DataFrame без срезов
-        df_list = []
+        rows = []
         for c in candles:
-            df_list.append({
+            rows.append({
                 'time': c[0],
-                'open': float(c[1]),
-                'high': float(c[2]),
-                'low': float(c[3]),
                 'close': float(c[4])
             })
         
-        df = pd.DataFrame(df_list)
-        return df
-        
+        print(f"Got {len(rows)} candles for {timeframe}", flush=True)
+        return pd.DataFrame(rows)
     except Exception as e:
-        print(f"❌ Ошибка: {e}", flush=True)
+        print(f"Error: {e}", flush=True)
         return None
 
 def sma_shifted(df, period, shift):
@@ -119,9 +114,8 @@ def get_h1_trend():
         return "neutral"
 
 def monitor():
-    print("🚀 Мониторинг запущен", flush=True)
-    print(f"📊 {SYMBOL} | {TIMEFRAME} | SMA5(0) vs SMA20(5)", flush=True)
-    print("-" * 50, flush=True)
+    print("🚀 Bot started", flush=True)
+    send_telegram("✅ Bot is running!")
     
     last_signal = None
     
@@ -129,7 +123,6 @@ def monitor():
         try:
             df_15m = get_candles(TIMEFRAME, 200)
             if df_15m is None:
-                print("⚠️ Нет данных 15m", flush=True)
                 time.sleep(60)
                 continue
             
@@ -146,51 +139,25 @@ def monitor():
                 
                 if allow and h1_trend:
                     if signal == "golden":
-                        msg = f"""🟢 ЗОЛОТОЙ КРЕСТ (лонг) 🟢
-
-📊 {SYMBOL} | {TIMEFRAME}
-💰 Цена: {price:.0f}
-
-📈 SMA5(0): {fast_val:.2f}
-📉 SMA20(5): {slow_val:.2f}
-
-📊 Тренд H1: ВВЕРХ (бычий)
-✅ Сигнал разрешен
-
-🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+                        msg = f"🟢 LONG\nBTC {price:.0f}\nSMA5:{fast_val:.1f}\nSMA20:{slow_val:.1f}"
                     else:
-                        msg = f"""🔴 КРЕСТ СМЕРТИ (шорт) 🔴
-
-📊 {SYMBOL} | {TIMEFRAME}
-💰 Цена: {price:.0f}
-
-📈 SMA5(0): {fast_val:.2f}
-📉 SMA20(5): {slow_val:.2f}
-
-📊 Тренд H1: ВНИЗ (медвежий)
-✅ Сигнал разрешен
-
-🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+                        msg = f"🔴 SHORT\nBTC {price:.0f}\nSMA5:{fast_val:.1f}\nSMA20:{slow_val:.1f}"
                     
                     send_telegram(msg)
-                    print(f"✅ {signal.upper()} | Цена={price:.0f} | H1={h1_trend}", flush=True)
+                    print(f"SIGNAL: {signal} at {price}", flush=True)
                     last_signal = signal
-                else:
-                    print(f"⚠️ {signal} заблокирован: H1={h1_trend}", flush=True)
             
             print(".", end="", flush=True)
             time.sleep(60)
-            
         except Exception as e:
-            print(f"\n❌ Ошибка: {e}", flush=True)
+            print(f"Error: {e}", flush=True)
             time.sleep(60)
 
 @app.route('/')
 def home():
-    return "Bot is running!"
+    return "Bot running"
 
 thread = threading.Thread(target=monitor)
-thread.daemon = True
 thread.start()
 
 if __name__ == "__main__":
