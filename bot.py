@@ -14,7 +14,6 @@ CHAT_ID = 970067275
 
 SYMBOL = "BTC-USDT"
 TIMEFRAME = "15m"
-TIMEFRAME_HIGHER = "1h"
 
 app = Flask(__name__)
 
@@ -92,30 +91,9 @@ def check_signal(df_15m):
     else:
         return None, None, None, None
 
-def get_h1_trend():
-    df = get_candles(TIMEFRAME_HIGHER, 150)
-    if df is None:
-        return None
-    
-    slow = sma_shifted(df, 20, 5)
-    df = df.dropna()
-    
-    if len(df) < 2:
-        return None
-    
-    price = df["close"].iloc[-1]
-    ma = slow.iloc[-1]
-    
-    if price > ma:
-        return "up"
-    elif price < ma:
-        return "down"
-    else:
-        return "neutral"
-
 def monitor():
-    print("🚀 Bot started", flush=True)
-    send_telegram("✅ Bot is running!")
+    print("🚀 Bot started (без H1 фильтра)", flush=True)
+    send_telegram("✅ Bot is running! (без фильтра H1)")
     
     last_signal = None
     
@@ -129,23 +107,14 @@ def monitor():
             signal, fast_val, slow_val, price = check_signal(df_15m)
             
             if signal and signal != last_signal:
-                h1_trend = get_h1_trend()
+                if signal == "golden":
+                    msg = f"🟢 LONG\nBTC {price:.0f}\nSMA5:{fast_val:.1f}\nSMA20:{slow_val:.1f}"
+                else:
+                    msg = f"🔴 SHORT\nBTC {price:.0f}\nSMA5:{fast_val:.1f}\nSMA20:{slow_val:.1f}"
                 
-                allow = False
-                if signal == "golden" and h1_trend == "up":
-                    allow = True
-                elif signal == "death" and h1_trend == "down":
-                    allow = True
-                
-                if allow and h1_trend:
-                    if signal == "golden":
-                        msg = f"🟢 LONG\nBTC {price:.0f}\nSMA5:{fast_val:.1f}\nSMA20:{slow_val:.1f}"
-                    else:
-                        msg = f"🔴 SHORT\nBTC {price:.0f}\nSMA5:{fast_val:.1f}\nSMA20:{slow_val:.1f}"
-                    
-                    send_telegram(msg)
-                    print(f"SIGNAL: {signal} at {price}", flush=True)
-                    last_signal = signal
+                send_telegram(msg)
+                print(f"SIGNAL: {signal} at {price}", flush=True)
+                last_signal = signal
             
             print(".", end="", flush=True)
             time.sleep(60)
