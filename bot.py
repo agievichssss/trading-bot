@@ -12,7 +12,7 @@ BOT_TOKEN = "8677995560:AAH10i9hTA4yRpFf9S6_d-IlgLNHJexmbAY"
 CHAT_ID = 970067275
 # =============================================
 
-SYMBOL = "BTC-USDT"
+SYMBOL = "BTCUSDT"
 TIMEFRAME = "15m"
 
 app = Flask(__name__)
@@ -26,7 +26,7 @@ def send_telegram(text):
         print(f"❌ Telegram error: {e}", flush=True)
 
 def get_candles(timeframe, limit=200):
-    """BingX Futures API (USDT-M Perpetual) — ИСПРАВЛЕНО"""
+    """BingX Futures API (USDT-M Perpetual)"""
     url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
     params = {"symbol": SYMBOL, "interval": timeframe, "limit": limit}
     headers = {"X-BX-APIKEY": API_KEY}
@@ -35,13 +35,16 @@ def get_candles(timeframe, limit=200):
         r = requests.get(url, headers=headers, params=params, timeout=10)
         data = r.json()
         
+        # Отладка
+        print(f"API response code: {data.get('code')}", flush=True)
+        
         if data.get("code") != 0:
             print(f"API error: {data.get('msg')}", flush=True)
             return None
         
         candles = data.get("data")
         if not candles:
-            print("No data", flush=True)
+            print("No data in response", flush=True)
             return None
         
         rows = []
@@ -51,10 +54,10 @@ def get_candles(timeframe, limit=200):
                 'close': float(c[4])
             })
         
-        print(f"Got {len(rows)} candles for {timeframe}", flush=True)
+        print(f"✅ Got {len(rows)} candles for {timeframe}", flush=True)
         return pd.DataFrame(rows)
     except Exception as e:
-        print(f"Error: {e}", flush=True)
+        print(f"❌ Error: {e}", flush=True)
         return None
 
 def sma_shifted(df, period, shift):
@@ -84,16 +87,21 @@ def check_signal(df_15m):
     prev_slow = df["slow"].iloc[-2]
     price = df["close"].iloc[-1]
     
+    # Отладка
+    print(f"📊 fast={now_fast:.2f} slow={now_slow:.2f} | prev_fast={prev_fast:.2f} prev_slow={prev_slow:.2f}", flush=True)
+    
     if prev_fast <= prev_slow and now_fast > now_slow:
+        print("🟢 GOLDEN CROSS", flush=True)
         return "golden", now_fast, now_slow, price
     elif prev_fast >= prev_slow and now_fast < now_slow:
+        print("🔴 DEATH CROSS", flush=True)
         return "death", now_fast, now_slow, price
     else:
         return None, None, None, None
 
 def monitor():
-    print("🚀 Bot started", flush=True)
-    send_telegram("✅ Bot is running!")
+    print("🚀 Bot started (Futures API)", flush=True)
+    send_telegram("✅ Bot is running! (фьючерсы)")
     
     last_signal = None
     
@@ -101,6 +109,7 @@ def monitor():
         try:
             df_15m = get_candles(TIMEFRAME, 200)
             if df_15m is None:
+                print("⚠️ No data, waiting...", flush=True)
                 time.sleep(60)
                 continue
             
@@ -113,18 +122,18 @@ def monitor():
                     msg = f"🔴 SHORT\nBTC {price:.0f}\nSMA5:{fast_val:.1f}\nSMA20:{slow_val:.1f}"
                 
                 send_telegram(msg)
-                print(f"SIGNAL: {signal} at {price}", flush=True)
+                print(f"✅ SIGNAL: {signal} at {price}", flush=True)
                 last_signal = signal
             
             print(".", end="", flush=True)
             time.sleep(60)
         except Exception as e:
-            print(f"Error: {e}", flush=True)
+            print(f"❌ Error: {e}", flush=True)
             time.sleep(60)
 
 @app.route('/')
 def home():
-    return "Bot running"
+    return "Bot running (Futures)"
 
 thread = threading.Thread(target=monitor)
 thread.start()
