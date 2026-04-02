@@ -26,17 +26,19 @@ def send_telegram(text):
         print(f"❌ Telegram error: {e}", flush=True)
 
 def get_candles(timeframe, limit=200):
-    """BingX Futures API (USDT-M Perpetual)"""
+    """BingX Futures API"""
+    # Используем правильный фьючерсный эндпоинт
     url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
-    params = {"symbol": SYMBOL, "interval": timeframe, "limit": limit}
+    params = {
+        "symbol": SYMBOL,
+        "interval": timeframe,
+        "limit": limit
+    }
     headers = {"X-BX-APIKEY": API_KEY}
     
     try:
         r = requests.get(url, headers=headers, params=params, timeout=10)
         data = r.json()
-        
-        # Отладка
-        print(f"API response code: {data.get('code')}", flush=True)
         
         if data.get("code") != 0:
             print(f"API error: {data.get('msg')}", flush=True)
@@ -44,7 +46,7 @@ def get_candles(timeframe, limit=200):
         
         candles = data.get("data")
         if not candles:
-            print("No data in response", flush=True)
+            print("No data", flush=True)
             return None
         
         rows = []
@@ -54,10 +56,10 @@ def get_candles(timeframe, limit=200):
                 'close': float(c[4])
             })
         
-        print(f"✅ Got {len(rows)} candles for {timeframe}", flush=True)
+        print(f"✅ Got {len(rows)} candles", flush=True)
         return pd.DataFrame(rows)
     except Exception as e:
-        print(f"❌ Error: {e}", flush=True)
+        print(f"Error: {e}", flush=True)
         return None
 
 def sma_shifted(df, period, shift):
@@ -87,8 +89,7 @@ def check_signal(df_15m):
     prev_slow = df["slow"].iloc[-2]
     price = df["close"].iloc[-1]
     
-    # Отладка
-    print(f"📊 fast={now_fast:.2f} slow={now_slow:.2f} | prev_fast={prev_fast:.2f} prev_slow={prev_slow:.2f}", flush=True)
+    print(f"📊 fast={now_fast:.2f} slow={now_slow:.2f}", flush=True)
     
     if prev_fast <= prev_slow and now_fast > now_slow:
         print("🟢 GOLDEN CROSS", flush=True)
@@ -107,13 +108,13 @@ def monitor():
     
     while True:
         try:
-            df_15m = get_candles(TIMEFRAME, 200)
-            if df_15m is None:
+            df = get_candles(TIMEFRAME, 200)
+            if df is None:
                 print("⚠️ No data, waiting...", flush=True)
                 time.sleep(60)
                 continue
             
-            signal, fast_val, slow_val, price = check_signal(df_15m)
+            signal, fast_val, slow_val, price = check_signal(df)
             
             if signal and signal != last_signal:
                 if signal == "golden":
@@ -128,7 +129,7 @@ def monitor():
             print(".", end="", flush=True)
             time.sleep(60)
         except Exception as e:
-            print(f"❌ Error: {e}", flush=True)
+            print(f"Error: {e}", flush=True)
             time.sleep(60)
 
 @app.route('/')
