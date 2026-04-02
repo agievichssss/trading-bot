@@ -12,7 +12,7 @@ BOT_TOKEN = "8677995560:AAH10i9hTA4yRpFf9S6_d-IlgLNHJexmbAY"
 CHAT_ID = 970067275
 # =============================================
 
-SYMBOL = "BTCUSDT"
+SYMBOL = "BTC-USDT"
 TIMEFRAME = "15m"
 TIMEFRAME_HIGHER = "1h"
 
