@@ -26,8 +26,8 @@ def send_telegram(text):
         print(f"❌ Telegram error: {e}", flush=True)
 
 def get_candles(timeframe, limit=200):
-    """BingX Spot API"""
-    url = "https://open-api.bingx.com/openApi/spot/v1/market/kline"
+    """BingX Futures API (USDT-M Perpetual) — ИСПРАВЛЕНО"""
+    url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
     params = {"symbol": SYMBOL, "interval": timeframe, "limit": limit}
     headers = {"X-BX-APIKEY": API_KEY}
     
@@ -92,8 +92,8 @@ def check_signal(df_15m):
         return None, None, None, None
 
 def monitor():
-    print("🚀 Bot started (без H1 фильтра)", flush=True)
-    send_telegram("✅ Bot is running! (без фильтра H1)")
+    print("🚀 Bot started", flush=True)
+    send_telegram("✅ Bot is running!")
     
     last_signal = None
     
