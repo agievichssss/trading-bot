@@ -6,13 +6,15 @@ from datetime import datetime
 from flask import Flask
 
 # ============= ВСТАВЬ СВОИ КЛЮЧИ =============
-API_KEY = "CiEfuxenwEgXPwWQYsDdu09fT2uvXGnq7iH5zZiZvuVKOVa23Im6PJFldJMoOWOQMcDdz8Z6xytOSMaNritQ"
-API_SECRET = "pxYOrOORA413kWJ4u9zdanJZcLdg4hxJYXpWwORIdRhHtfqb2ok7CtNsB58jgnTDeHfsiMERl7KtLQtQg"
+API_KEY = "YbfZY3ZlejMJePdVGJUlc50HpaRpNSRSyBlsdnHJXgJBkkSE0fVbu41TPbI6vwFDEdZspc4jpB450LTXA"
+API_SECRET = "MiGWRJ9THxLRSLVzF0Dzg5QPKU7UuFUIKZEIMYiizypvy7pVAPbU9YkksOMZLhVTrd1mRCF4djGKp4igMrA"
 BOT_TOKEN = "8677995560:AAH10i9hTA4yRpFf9S6_d-IlgLNHJexmbAY"
 CHAT_ID = 970067275
 # =============================================
 
-SYMBOL = "BTC-USDT"
+# Пробуй оба варианта символа:
+SYMBOL = "BTCUSDT"        # Без дефиса (попробуй сначала этот)
+# SYMBOL = "BTC-USDT"     # С дефисом (если первый не работает)
 TIMEFRAME = "15m"
 
 app = Flask(__name__)
@@ -26,7 +28,7 @@ def send_telegram(text):
         print(f"❌ Telegram error: {e}", flush=True)
 
 def get_candles(timeframe, limit=200):
-    """BingX Futures API"""
+    """BingX Futures API с полной отладкой"""
     url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
     params = {
         "symbol": SYMBOL,
@@ -35,18 +37,36 @@ def get_candles(timeframe, limit=200):
     }
     headers = {"X-BX-APIKEY": API_KEY}
     
+    print(f"\n🔍 DEBUG: Запрос к API", flush=True)
+    print(f"   URL: {url}", flush=True)
+    print(f"   Symbol: {SYMBOL}", flush=True)
+    print(f"   Interval: {timeframe}", flush=True)
+    
     try:
         r = requests.get(url, headers=headers, params=params, timeout=10)
+        print(f"   HTTP Status: {r.status_code}", flush=True)
+        
         data = r.json()
         
+        # ПОЛНАЯ ОТЛАДКА: печатаем весь ответ
+        print(f"📦 FULL API RESPONSE:", flush=True)
+        print(data, flush=True)
+        
         if data.get("code") != 0:
-            print(f"API error: {data.get('msg')}", flush=True)
+            print(f"❌ API error code: {data.get('code')}", flush=True)
+            print(f"   Message: {data.get('msg')}", flush=True)
             return None
         
         candles = data.get("data")
         if not candles:
-            print("No data", flush=True)
+            print("❌ No data in 'data' field", flush=True)
+            print(f"   Response keys: {data.keys()}", flush=True)
             return None
+        
+        print(f"✅ Got {len(candles)} candles", flush=True)
+        if len(candles) > 0:
+            print(f"   First candle: {candles[0]}", flush=True)
+            print(f"   Last candle: {candles[-1]}", flush=True)
         
         rows = []
         for c in candles:
@@ -55,10 +75,10 @@ def get_candles(timeframe, limit=200):
                 'close': float(c[4])
             })
         
-        print(f"✅ Got {len(rows)} candles", flush=True)
         return pd.DataFrame(rows)
+        
     except Exception as e:
-        print(f"Error: {e}", flush=True)
+        print(f"❌ Exception: {e}", flush=True)
         return None
 
 def sma_shifted(df, period, shift):
@@ -100,8 +120,8 @@ def check_signal(df_15m):
         return None, None, None, None
 
 def monitor():
-    print("🚀 Bot started (Futures API)", flush=True)
-    send_telegram("✅ Bot is running! (фьючерсы)")
+    print("🚀 Bot started (Futures API with DEBUG)", flush=True)
+    send_telegram("✅ Bot is running! (отладочная версия)")
     
     last_signal = None
     
@@ -133,7 +153,6 @@ def monitor():
 
 @app.route('/')
 def home():
-    # Минимальный ответ для пинга (чтобы cron-job.org не ругался на большие данные)
     return "OK"
 
 thread = threading.Thread(target=monitor)
