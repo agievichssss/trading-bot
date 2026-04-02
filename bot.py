@@ -12,7 +12,6 @@ BOT_TOKEN = "8677995560:AAH10i9hTA4yRpFf9S6_d-IlgLNHJexmbAY"
 CHAT_ID = 970067275
 # =============================================
 
-# ПРАВИЛЬНЫЙ СИМВОЛ С ДЕФИСОМ
 SYMBOL = "BTC-USDT"
 TIMEFRAME = "15m"
 
@@ -27,7 +26,7 @@ def send_telegram(text):
         print(f"❌ Telegram error: {e}", flush=True)
 
 def get_candles(timeframe, limit=200):
-    """BingX Futures API - правильный эндпоинт"""
+    """BingX Futures API - правильный парсинг данных"""
     url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
     params = {
         "symbol": SYMBOL,
@@ -40,26 +39,26 @@ def get_candles(timeframe, limit=200):
         r = requests.get(url, headers=headers, params=params, timeout=10)
         data = r.json()
         
-        # Проверяем код ответа
         if data.get("code") != 0:
             print(f"API error: {data.get('msg')}", flush=True)
             return None
         
         candles = data.get("data")
-        if not candles or len(candles) == 0:
-            print("No data in response", flush=True)
+        if not candles:
+            print("No data", flush=True)
             return None
         
-        # Берем только нужные поля: время и цену закрытия
-        rows = []
-        for c in candles:
-            rows.append({
-                'time': c[0],
-                'close': float(c[4])
-            })
+        # BingX возвращает список словарей. Преобразуем в DataFrame.
+        df = pd.DataFrame(candles)
         
-        print(f"✅ Got {len(rows)} candles for {SYMBOL}", flush=True)
-        return pd.DataFrame(rows)
+        # Переименуем колонки, чтобы было понятно
+        df.rename(columns={'close': 'close', 'open': 'open', 'high': 'high', 'low': 'low', 'volume': 'volume', 'time': 'time'}, inplace=True)
+        
+        # Убедимся, что цены - числа с плавающей точкой
+        df["close"] = df["close"].astype(float)
+        
+        print(f"✅ Got {len(df)} candles for {SYMBOL}", flush=True)
+        return df
         
     except Exception as e:
         print(f"Error: {e}", flush=True)
@@ -96,11 +95,9 @@ def check_signal(df_15m):
     
     print(f"📊 fast={now_fast:.2f} slow={now_slow:.2f}", flush=True)
     
-    # Золотой крест (лонг)
     if prev_fast <= prev_slow and now_fast > now_slow:
         print("🟢 GOLDEN CROSS - LONG SIGNAL", flush=True)
         return "golden", now_fast, now_slow, price
-    # Крест смерти (шорт)
     elif prev_fast >= prev_slow and now_fast < now_slow:
         print("🔴 DEATH CROSS - SHORT SIGNAL", flush=True)
         return "death", now_fast, now_slow, price
@@ -108,8 +105,8 @@ def check_signal(df_15m):
         return None, None, None, None
 
 def monitor():
-    print("🚀 Bot started (Futures API - BTC-USDT)", flush=True)
-    send_telegram("✅ Bot is running! (фьючерсы BingX)")
+    print("🚀 Bot started (Futures API - fixed parsing)", flush=True)
+    send_telegram("✅ Bot is running! (фьючерсы BingX - исправлен парсинг)")
     
     last_signal = None
     
@@ -142,10 +139,10 @@ def monitor():
 
 @app.route('/')
 def home():
-    # Минимальный ответ для пинга (чтобы бот не засыпал)
+    # Минимальный ответ для пинга
     return "OK"
 
-# Запускаем мониторинг в фоновом потоке
+# Запускаем мониторинг
 thread = threading.Thread(target=monitor)
 thread.daemon = True
 thread.start()
